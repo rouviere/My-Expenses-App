@@ -8,31 +8,79 @@
 
 import SwiftUI
 
-struct ContentView: View {
-   @State private var numbers = [Int]()
-    @State private var currentNumber = 1
-    
-    var body: some View {
-        NavigationView {
-        VStack {
-            List {
-                ForEach(numbers, id: \.self) {
-                    Text("\($0)")
-                }
-                .onDelete(perform: removeRows)
-            }
+struct ExpenseItem: Identifiable, Codable {
+    let id = UUID()   // Swift generates a UUID for us
+    let name: String
+    let type: String
+    let amount: Int
+}
+
+class Expenses: ObservableObject {
+    // This is where we store all the expense items that are created
+    @Published var items = [ExpenseItem]() {
+        didSet {
+            let encoder = JSONEncoder()
             
-            Button("Add Number") {
-                self.numbers.append(self.currentNumber)
-                self.currentNumber += 1
+            if let encoded = try?
+                encoder.encode(items) {
+                UserDefaults.standard.set(encoded, forKey: "Items")
             }
-        }
-        .navigationBarItems(leading: EditButton())
         }
     }
     
-    func removeRows(at offsets: IndexSet) {
-        numbers.remove(atOffsets: offsets)
+    init() {
+        if let items = UserDefaults.standard.data(forKey: "Items") {
+            let decoder = JSONDecoder()
+            
+            if let decoded = try?
+                decoder.decode([ExpenseItem].self, from: items) {
+                self.items = decoded
+                return
+            }
+        }
+        
+        self.items = []
+    }
+}
+
+struct ContentView: View {
+    @ObservedObject var expenses = Expenses()
+    @State private var showingAddExpense = false
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(expenses.items) { item in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(item.name)
+                                .font(.headline)
+                            Text(item.type)
+                        }
+                        
+                        Spacer()
+                        Text("$\(item.amount)")
+                    }
+                    
+                }
+            .onDelete(perform: removeItems)
+            }
+            .navigationBarTitle("iExpense")
+            .navigationBarItems(trailing:
+                Button(action: {
+                    self.showingAddExpense = true
+                }) {
+                    Image(systemName: "plus")
+                }
+            )
+                .sheet(isPresented: $showingAddExpense) {
+                    AddView(expenses: self.expenses)
+            }
+        }
+    }
+    
+    func removeItems(at offsets: IndexSet) {
+        expenses.items.remove(atOffsets: offsets)
     }
 }
 
